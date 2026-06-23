@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  app:
+    image: git.your-gitea.com/your-username/better-cups:latest
+    networks:
+      - host
+    secrets:
+      - cups_user
+      - cups_pass
+    volumes:
+      - cups-config:/etc/cups
+      - cups-spool:/var/spool/cups
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == your-server
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+
+secrets:
+  cups_user:
+    external: true
+  cups_pass:
+    external: true
+
+volumes:
+  cups-config:
+  cups-spool:
+
+networks:
+  host:
+    external: true
+    name: host

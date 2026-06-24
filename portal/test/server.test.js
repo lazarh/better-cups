@@ -30,6 +30,18 @@ test('GET / serves the HTML upload form', async () => {
   expect(res.text).toMatch(/enctype="multipart\/form-data"/);
 });
 
+// Behavior 1b: form contains all print option fields
+test('GET / form contains all 6 print option input fields', async () => {
+  const res = await request(app).get('/');
+  const html = res.text;
+  expect(html).toMatch(/name="copies"/);
+  expect(html).toMatch(/name="pages"/);
+  expect(html).toMatch(/name="nup"/);
+  expect(html).toMatch(/name="orientation"/);
+  expect(html).toMatch(/name="fit"/);
+  expect(html).toMatch(/name="margins"/);
+});
+
 // Behavior 2: unsupported file type is rejected
 test('POST /print with unsupported file type returns 400', async () => {
   const res = await request(app)
@@ -98,4 +110,105 @@ test('POST /print with no file returns 400', async () => {
   const res = await request(app).post('/print');
   expect(res.status).toBe(400);
   expect(res.text).toMatch(/no file/i);
+});
+
+// ── Print options ────────────────────────────────────────────────────────────
+
+// Behavior 8: page range option passes -P to lp
+test('POST /print with pages=2-4 passes -P 2-4 to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('pages', '2-4')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-P', '2-4']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+
+// Behavior 10: landscape orientation passes -o landscape to lp
+test('POST /print with orientation=landscape passes -o landscape to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('orientation', 'landscape')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-o', 'landscape']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+
+// Behavior 12: narrow margins passes page-top/bottom/left/right=17 to lp
+test('POST /print with margins=narrow passes page margin args to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('margins', 'narrow')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-o', 'page-top=17', '-o', 'page-bottom=17', '-o', 'page-left=17', '-o', 'page-right=17']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+
+// Behavior 13: no margins passes page-top/bottom/left/right=0 to lp
+test('POST /print with margins=none passes zero margin args to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('margins', 'none')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-o', 'page-top=0', '-o', 'page-bottom=0', '-o', 'page-left=0', '-o', 'page-right=0']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+test('POST /print with fit=on passes -o fit-to-page to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('fit', 'on')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-o', 'fit-to-page']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+test('POST /print with nup=2 passes -o number-up=2 to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('nup', '2')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-o', 'number-up=2']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+test('POST /print with copies=3 passes -n 3 to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('copies', '3')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-n', '3']),
+    expect.anything(),
+    expect.any(Function)
+  );
 });

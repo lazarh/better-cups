@@ -6,8 +6,8 @@ services:
     networks:
       - host
     secrets:
-      - cups_user
-      - cups_pass
+      - source: cups_pass_v2
+        target: cups_pass
     volumes:
       - cups-config:/etc/cups
       - cups-spool:/var/spool/cups
@@ -26,9 +26,7 @@ services:
         order: stop-first
 
 secrets:
-  cups_user:
-    external: true
-  cups_pass:
+  cups_pass_v2:
     external: true
 
 volumes:

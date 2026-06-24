@@ -2,29 +2,28 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Read credentials from Docker Swarm secrets (preferred) or env vars (fallback)
+# Admin username is fixed as 'admin'.
+# Password is read from Docker Swarm secret /run/secrets/cups_pass (required).
 # ---------------------------------------------------------------------------
-CUPS_USER="${CUPS_USER:-cupsadmin}"
-CUPS_PASSWORD="${CUPS_PASSWORD:-cupsadmin}"
+CUPS_USER="admin"
 
-if [ -f /run/secrets/cups_user ]; then
-  CUPS_USER="$(cat /run/secrets/cups_user)"
+if [ ! -f /run/secrets/cups_pass ]; then
+  echo "[entrypoint] ERROR: /run/secrets/cups_pass secret is missing." >&2
+  exit 1
 fi
-if [ -f /run/secrets/cups_pass ]; then
-  CUPS_PASSWORD="$(cat /run/secrets/cups_pass)"
-fi
+CUPS_PASSWORD="$(cat /run/secrets/cups_pass)"
 
 # ---------------------------------------------------------------------------
-# Create CUPS admin system user if it doesn't already exist
+# Create a regular (non-system) user so PAM authentication works correctly
 # ---------------------------------------------------------------------------
 if ! id "$CUPS_USER" &>/dev/null; then
-  useradd -r -G lpadmin -s /usr/sbin/nologin "$CUPS_USER"
+  useradd -m -G lpadmin -s /usr/sbin/nologin "$CUPS_USER"
 fi
 
-# Ensure the user is in the lpadmin group
+# Ensure lpadmin membership (idempotent on restarts)
 usermod -aG lpadmin "$CUPS_USER" 2>/dev/null || true
 
-# Set the Linux account password (required for CUPS Basic auth)
+# Set the Linux account password (CUPS Basic auth uses PAM → /etc/shadow)
 echo "${CUPS_USER}:${CUPS_PASSWORD}" | chpasswd
 
 # ---------------------------------------------------------------------------

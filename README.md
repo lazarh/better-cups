@@ -18,12 +18,12 @@ Deployed as a single Docker Swarm service on `your-server.home` (x86-64) with ho
 
 ## Prerequisites
 
-- Docker Swarm cluster with `immich` node in **Ready** state
-- `avahi-daemon` running on the `immich` host (provides mDNS for CUPS)
-- Gitea container registry access at `git.lazarh.work`
+- Docker Swarm cluster with your node in **Ready** state
+- `avahi-daemon` running on the host (provides mDNS for CUPS)
+- Gitea container registry access at `git.your-gitea.com`
 
 ```bash
-# Verify on the immich node
+# Verify on the host
 ssh your-server.home "systemctl is-active avahi-daemon && docker node ls"
 ```
 
@@ -38,11 +38,11 @@ printf 'YOUR_STRONG_PASSWORD' | docker secret create cups_pass -
 
 > ⚠️ Replace `YOUR_STRONG_PASSWORD` with a real password. Stored encrypted in the Swarm raft log.
 
-## 2. Log in to the Gitea registry on immich
+## 2. Log in to the Gitea registry
 
 ```bash
 ssh your-server.home \
-  "echo 'YOUR_GITEA_TOKEN' | docker login git.lazarh.work -u d3f --password-stdin"
+  "echo 'YOUR_GITEA_TOKEN' | docker login git.your-gitea.com -u your-username --password-stdin"
 ```
 
 ## 3. Deploy the stack
@@ -51,7 +51,7 @@ ssh your-server.home \
 docker stack deploy -c docker-stack.yml better-cups
 ```
 
-Verify the service starts on the `immich` node:
+Verify the service starts:
 
 ```bash
 docker service ps better-cups_app
@@ -96,7 +96,7 @@ Add a Gitea **Repository Secret** (`Settings → Actions → Secrets`):
 
 | Name | Value |
 |---|---|
-| `GITEA_TOKEN` | Gitea access token for `d3f` with `package:write` permission |
+| `GITEA_TOKEN` | Gitea access token with `package:write` permission |
 
 Every push to `main` builds and pushes `git.your-gitea.com/your-username/better-cups:latest`.
 

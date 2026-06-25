@@ -1,25 +1,30 @@
-FROM drewzh/printnode@sha256:babaa9a05ddd79e0bd16362822065d69160f2f4039fe3b5ae2261fe3a3fd7c27
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Node.js 20 repo and all required packages in one layer
+# Install all packages in one layer
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
- && mkdir -p /etc/apt/keyrings \
- && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-    | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
- && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
-    > /etc/apt/sources.list.d/nodesource.list \
- && apt-get update \
  && apt-get install -y --no-install-recommends \
-      nodejs \
+      curl ca-certificates gnupg \
+      cups cups-client cups-daemon cups-browsed cups-filters \
       printer-driver-foo2zjs \
       libreoffice-writer \
       supervisor \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# CUPS configuration
+# Install Node.js 20
+RUN mkdir -p /etc/apt/keyrings \
+ && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+    | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+ && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+    > /etc/apt/sources.list.d/nodesource.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends nodejs \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+# CUPS configuration template (processed at runtime by entrypoint)
 COPY cupsd.conf /etc/cups/cupsd.conf
 
 # Supervisor configuration
@@ -30,7 +35,7 @@ COPY portal/ /app/portal/
 WORKDIR /app/portal
 RUN npm ci --omit=dev
 
-# Entrypoint replaces the default PrintNode run.sh
+# Entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

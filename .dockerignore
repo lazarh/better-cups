@@ -1,6 +1,5 @@
 portal/node_modules/
 portal/test/
-.gitea/
 .git/
-README.md
-*.md
+.gitea/
+docker-stack.yml

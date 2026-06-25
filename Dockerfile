@@ -33,7 +33,7 @@ COPY supervisord.conf /etc/supervisor/conf.d/better-cups.conf
 # Portal application
 COPY portal/ /app/portal/
 WORKDIR /app/portal
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && rm -f package-lock.json node_modules/.package-lock.json && rm -rf /usr/lib/node_modules/npm
 
 # Entrypoint
 COPY entrypoint.sh /entrypoint.sh

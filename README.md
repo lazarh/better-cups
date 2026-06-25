@@ -109,9 +109,18 @@ lpstat -v
 echo "Test" | lp
 ```
 
-## Image
+## Build locally
 
-Pre-built images are available on Docker Hub:
+```bash
+git clone https://github.com/lazarh/better-cups.git
+cd better-cups
+docker build -t lazarh/better-cups .
+docker run --rm --network host -e CUPS_PASSWORD=test lazarh/better-cups
+```
+
+Open `http://localhost:631` (CUPS admin) or `http://localhost:8080` (print portal).
+
+## Pre-built images
 
 ```
 docker pull lazarh/better-cups

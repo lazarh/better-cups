@@ -5,7 +5,7 @@ services:
     image: lazarh/better-cups:latest
     network_mode: host
     environment:
-      - CUPS_PASSWORD=changeme
+      - CUPS_PASSWORD=${CUPS_PASSWORD:-changeme}
       - CUPS_ALLOW_CIDR=192.168.0.0/16
     volumes:
       - cups-config:/etc/cups

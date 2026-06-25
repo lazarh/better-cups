@@ -18,7 +18,7 @@ Browser → Nginx Proxy Manager (print.your-server.com)
               ↓
        Node.js portal :8080  (Express, drag-drop upload)
               ↓
-        CUPS (cupsd) :631     (Ubuntu 24.04)
+        CUPS (cupsd) :631     (Ubuntu 25.10)
                ↓
         Network printer  (discovered via mDNS / avahi)
 ```

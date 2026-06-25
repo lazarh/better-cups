@@ -9,9 +9,9 @@ Browser → Nginx Proxy Manager (print.your-server.com)
               ↓
        Node.js portal :8080  (Express, drag-drop upload)
               ↓
-       CUPS (cupsd) :631     (Ubuntu 20.04, foo2zjs driver)
-              ↓
-       Xerox WorkCentre 3045NI  (discovered via mDNS / avahi)
+        CUPS (cupsd) :631     (Ubuntu 20.04)
+               ↓
+        Network printer  (discovered via mDNS / avahi)
 ```
 
 Deployed as a single Docker Swarm service on `your-server.home` (x86-64) with host networking so CUPS can reach the LAN printer via mDNS.
@@ -72,12 +72,12 @@ Add a **Proxy Host** in NPM:
 
 Make sure your local DNS resolves `print.your-server.com` to your NPM instance IP.
 
-## 5. CUPS first-run: add the Xerox WorkCentre 3045NI
+## 5. CUPS first-run: add your printer
 
 1. Open `http://your-server.home:631` in a browser
 2. Go to **Administration → Add Printer** and log in with your admin credentials
-3. Select **Xerox WorkCentre 3045NI** from the discovered network printers list
-4. Choose driver: **Xerox WorkCentre 3045** (foo2hbpl2) — installed via `printer-driver-foo2zjs`
+3. Select your printer from the discovered network printers list
+4. Choose the appropriate driver for your printer model
 5. Click **Set As Default** so the upload portal prints to it automatically
 
 ## 6. Using the portal

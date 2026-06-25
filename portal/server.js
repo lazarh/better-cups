@@ -1,14 +1,14 @@
 'use strict';
 
 const express = require('express');
-const multer = require('multer');
+const fileUpload = require('express-fileupload');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { execFile } = require('child_process');
 
 const app = express();
-const upload = multer({ dest: os.tmpdir() });
+app.use(fileUpload());
 
 const SUPPORTED_TYPES = {
   'application/pdf': 'pdf',
@@ -276,58 +276,49 @@ const HTML_FORM = `<!DOCTYPE html>
 
 app.get('/', (_req, res) => res.send(HTML_FORM));
 
-app.post('/print', upload.single('file'), (req, res) => {
-  if (!req.file) {
+app.post('/print', (req, res) => {
+  if (!req.files || !req.files.file) {
     return res.status(400).send('No file attached.');
   }
 
-  const mime = req.file.mimetype;
+  const file = req.files.file;
+  const mime = file.mimetype;
   const ext = SUPPORTED_TYPES[mime];
-  const origName = req.file.originalname || 'upload';
+  const origName = file.name || 'upload';
   const origExt = path.extname(origName).toLowerCase().replace('.', '') || ext;
 
   if (!ext) {
-    fs.unlink(req.file.path, () => {});
     return res.status(400).send(`Unsupported file type: ${mime}`);
   }
 
-  // Build lp option args from POST body fields
+  const filePath = path.join(os.tmpdir(), `better-cups-${Date.now()}.${origExt || ext}`);
+  fs.writeFileSync(filePath, file.data);
+
+  const cleanup = () => fs.unlink(filePath, () => {});
+
   const lpArgs = buildLpArgs(req.body);
 
-  // Rename temp file to have correct extension (lp needs it for some drivers)
-  const filePath = `${req.file.path}.${origExt || ext}`;
-
-  fs.rename(req.file.path, filePath, (renameErr) => {
-    if (renameErr) {
-      return res.status(500).send('Failed to process upload.');
-    }
-
-    const cleanup = () => fs.unlink(filePath, () => {});
-
-    if (DOCX_TYPES.has(mime)) {
-      // Convert docx/doc → pdf via LibreOffice, then print the PDF
-      const outDir = os.tmpdir();
-      execFile('libreoffice', ['--headless', '--convert-to', 'pdf', '--outdir', outDir, filePath], { timeout: 60000 }, (err, _stdout, stderr) => {
-        cleanup();
-        if (err) {
-          return res.status(500).send(`LibreOffice conversion failed: ${stderr}`);
-        }
-        const pdfPath = path.join(outDir, path.basename(filePath, path.extname(filePath)) + '.pdf');
-        execFile('lp', [...lpArgs, pdfPath], { timeout: 30000 }, (lpErr, _out, lpStderr) => {
-          fs.unlink(pdfPath, () => {});
-          if (lpErr) return res.status(500).send(`Print failed: ${lpStderr}`);
-          res.send('Job submitted to default printer.');
-        });
-      });
-    } else {
-      // PDF and images go directly to lp
-      execFile('lp', [...lpArgs, filePath], { timeout: 30000 }, (err, _out, stderr) => {
-        cleanup();
-        if (err) return res.status(500).send(`Print failed: ${stderr}`);
+  if (DOCX_TYPES.has(mime)) {
+    const outDir = os.tmpdir();
+    execFile('libreoffice', ['--headless', '--convert-to', 'pdf', '--outdir', outDir, filePath], { timeout: 60000 }, (err, _stdout, stderr) => {
+      cleanup();
+      if (err) {
+        return res.status(500).send(`LibreOffice conversion failed: ${stderr}`);
+      }
+      const pdfPath = path.join(outDir, path.basename(filePath, path.extname(filePath)) + '.pdf');
+      execFile('lp', [...lpArgs, pdfPath], { timeout: 30000 }, (lpErr, _out, lpStderr) => {
+        fs.unlink(pdfPath, () => {});
+        if (lpErr) return res.status(500).send(`Print failed: ${lpStderr}`);
         res.send('Job submitted to default printer.');
       });
-    }
-  });
+    });
+  } else {
+    execFile('lp', [...lpArgs, filePath], { timeout: 30000 }, (err, _out, stderr) => {
+      cleanup();
+      if (err) return res.status(500).send(`Print failed: ${stderr}`);
+      res.send('Job submitted to default printer.');
+    });
+  }
 });
 
 const PORT = process.env.PORT || 8080;

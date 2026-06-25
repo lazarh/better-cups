@@ -10,6 +10,8 @@ RUN apt-get update \
       printer-driver-foo2zjs \
       libreoffice-writer \
       supervisor \
+      dbus \
+      avahi-daemon \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 

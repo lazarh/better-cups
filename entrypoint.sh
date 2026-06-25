@@ -24,8 +24,9 @@ fi
 usermod -aG lpadmin "$CUPS_USER" 2>/dev/null || true
 
 echo "${CUPS_USER}:${CUPS_PASSWORD}" | chpasswd
+mkdir -p /var/spool/cups/tmp /var/log/cups /run/cups /run/dbus
+chmod 755 /run/dbus
 
-mkdir -p /var/spool/cups/tmp /var/log/cups /run/cups
 chown -R root:lp /var/spool/cups
 chmod 0710 /var/spool/cups
 chmod 1770 /var/spool/cups/tmp

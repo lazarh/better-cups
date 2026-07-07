@@ -46,13 +46,9 @@ for ppd in /etc/cups/ppd/*.ppd; do
 *Duplex None\/Off: "%% FoomaticRIPOptionSetting: Duplex=None"\
 *FoomaticRIPOptionSetting Duplex=None: "-d1 "\
 *Duplex DuplexNoTumble\/Long Edge: "%% FoomaticRIPOptionSetting: Duplex=DuplexNoTumble"\
-*FoomaticRIPOptionSetting Duplex=DuplexNoTumble: "-d2 "\
+*FoomaticRIPOptionSetting Duplex=DuplexNoTumble: "-d4 "\
 *Duplex DuplexTumble\/Short Edge: "%% FoomaticRIPOptionSetting: Duplex=DuplexTumble"\
-*FoomaticRIPOptionSetting Duplex=DuplexTumble: "-d3 "\
-*Duplex DuplexNoTumbleMan\/Manual Long Edge: "%% FoomaticRIPOptionSetting: Duplex=DuplexNoTumbleMan"\
-*FoomaticRIPOptionSetting Duplex=DuplexNoTumbleMan: "-d4 "\
-*Duplex DuplexTumbleMan\/Manual Short Edge: "%% FoomaticRIPOptionSetting: Duplex=DuplexTumbleMan"\
-*FoomaticRIPOptionSetting Duplex=DuplexTumbleMan: "-d5 "\
+*FoomaticRIPOptionSetting Duplex=DuplexTumble: "-d5 "\
 *CloseUI: *Duplex' "$ppd"
   fi
 done

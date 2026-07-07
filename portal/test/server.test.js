@@ -216,7 +216,7 @@ test('POST /print with copies=3 passes -n 3 to lp', async () => {
 
 // ── Duplex / sides ─────────────────────────────────────────────────────────
 
-test('POST /print with sides=two-sided-long-edge passes Duplex=DuplexNoTumble to lp', async () => {
+test('POST /print with sides=two-sided-long-edge passes sides=two-sided-long-edge to lp', async () => {
   const res = await request(app)
     .post('/print')
     .field('sides', 'two-sided-long-edge')
@@ -224,13 +224,13 @@ test('POST /print with sides=two-sided-long-edge passes Duplex=DuplexNoTumble to
   expect(res.status).toBe(200);
   expect(execFile).toHaveBeenCalledWith(
     'lp',
-    expect.arrayContaining(['-o', 'Duplex=DuplexNoTumble']),
+    expect.arrayContaining(['-o', 'sides=two-sided-long-edge']),
     expect.anything(),
     expect.any(Function)
   );
 });
 
-test('POST /print with sides=two-sided-short-edge passes Duplex=DuplexTumble to lp', async () => {
+test('POST /print with sides=two-sided-short-edge passes sides=two-sided-short-edge to lp', async () => {
   const res = await request(app)
     .post('/print')
     .field('sides', 'two-sided-short-edge')
@@ -238,35 +238,7 @@ test('POST /print with sides=two-sided-short-edge passes Duplex=DuplexTumble to 
   expect(res.status).toBe(200);
   expect(execFile).toHaveBeenCalledWith(
     'lp',
-    expect.arrayContaining(['-o', 'Duplex=DuplexTumble']),
-    expect.anything(),
-    expect.any(Function)
-  );
-});
-
-test('POST /print with sides=manual-long-edge passes Duplex=DuplexNoTumbleMan to lp', async () => {
-  const res = await request(app)
-    .post('/print')
-    .field('sides', 'manual-long-edge')
-    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
-  expect(res.status).toBe(200);
-  expect(execFile).toHaveBeenCalledWith(
-    'lp',
-    expect.arrayContaining(['-o', 'Duplex=DuplexNoTumbleMan']),
-    expect.anything(),
-    expect.any(Function)
-  );
-});
-
-test('POST /print with sides=manual-short-edge passes Duplex=DuplexTumbleMan to lp', async () => {
-  const res = await request(app)
-    .post('/print')
-    .field('sides', 'manual-short-edge')
-    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
-  expect(res.status).toBe(200);
-  expect(execFile).toHaveBeenCalledWith(
-    'lp',
-    expect.arrayContaining(['-o', 'Duplex=DuplexTumbleMan']),
+    expect.arrayContaining(['-o', 'sides=two-sided-short-edge']),
     expect.anything(),
     expect.any(Function)
   );
@@ -332,13 +304,13 @@ test('POST /parse with no file returns 400', async () => {
   expect(res.text).toMatch(/no file/i);
 });
 
-test('POST /print with sides=one-sided passes no -o Duplex arg to lp', async () => {
+test('POST /print with sides=one-sided passes no -o sides arg to lp', async () => {
   const res = await request(app)
     .post('/print')
     .field('sides', 'one-sided')
     .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
   expect(res.status).toBe(200);
   const lpCallArgs = execFile.mock.calls.find(c => c[0] === 'lp')[1];
-  const duplexArgs = lpCallArgs.filter(a => a.startsWith('Duplex='));
-  expect(duplexArgs).toHaveLength(0);
+  const sidesArgs = lpCallArgs.filter(a => a.startsWith('sides=') || a === 'sides=two-sided-long-edge' || a === 'sides=two-sided-short-edge');
+  expect(sidesArgs).toHaveLength(0);
 });

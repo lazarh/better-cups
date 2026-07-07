@@ -44,7 +44,10 @@ function buildLpArgs(body = {}) {
   const marginArgs = MARGINS[body.margins];
   if (marginArgs) args.push(...marginArgs);
   const sides = body.sides;
-  if (sides && sides !== 'one-sided') args.push('-o', `sides=${sides}`);
+  if (sides === 'two-sided-long-edge') args.push('-o', 'Duplex=DuplexNoTumble');
+  else if (sides === 'two-sided-short-edge') args.push('-o', 'Duplex=DuplexTumble');
+  else if (sides === 'manual-long-edge') args.push('-o', 'Duplex=DuplexNoTumbleMan');
+  else if (sides === 'manual-short-edge') args.push('-o', 'Duplex=DuplexTumbleMan');
   return args;
 }
 
@@ -205,6 +208,8 @@ const HTML_FORM = `<!DOCTYPE html>
             <option value="one-sided">Off</option>
             <option value="two-sided-long-edge">Long Edge</option>
             <option value="two-sided-short-edge">Short Edge</option>
+            <option value="manual-long-edge">Manual Long Edge</option>
+            <option value="manual-short-edge">Manual Short Edge</option>
           </select>
         </div>
 

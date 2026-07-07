@@ -31,6 +31,28 @@ chown -R root:lp /var/spool/cups
 chmod 0710 /var/spool/cups
 chmod 1770 /var/spool/cups/tmp
 
+# Patch PPD files for duplex support where the driver supports it
+for ppd in /etc/cups/ppd/*.ppd; do
+  [ -f "$ppd" ] || continue
+  if grep -q '^\\*FoomaticRIPCommandLine: "foo2hbpl2-wrapper %A"' "$ppd" && ! grep -q '^\\*OpenUI \\*Duplex' "$ppd"; then
+    echo "[entrypoint] Adding Duplex option to $(basename "$ppd")"
+    # Add Duplex option before the first *OpenUI *PageSize line
+    sed -i '/^\*OpenUI \*PageSize\/Page Size: PickOne/i\
+\
+*OpenUI *Duplex\/Duplex: PickOne\
+*FoomaticRIPOption Duplex: enum CmdLine A\
+*OrderDependency: 132 AnySetup *Duplex\
+*DefaultDuplex: None\
+*Duplex None\/Off: "%% FoomaticRIPOptionSetting: Duplex=None"\
+*FoomaticRIPOptionSetting Duplex=None: "-d1 "\
+*Duplex DuplexNoTumble\/Long Edge: "%% FoomaticRIPOptionSetting: Duplex=DuplexNoTumble"\
+*FoomaticRIPOptionSetting Duplex=DuplexNoTumble: "-d2 "\
+*Duplex DuplexTumble\/Short Edge: "%% FoomaticRIPOptionSetting: Duplex=DuplexTumble"\
+*FoomaticRIPOptionSetting Duplex=DuplexTumble: "-d3 "\
+*CloseUI: *Duplex' "$ppd"
+  fi
+done
+
 echo "[entrypoint] CUPS admin user: ${CUPS_USER}"
 echo "[entrypoint] CUPS allow CIDR: ${CUPS_ALLOW_CIDR}"
 echo "[entrypoint] Starting supervisord..."

@@ -31,7 +31,7 @@ test('GET / serves the HTML upload form', async () => {
 });
 
 // Behavior 1b: form contains all print option fields
-test('GET / form contains all 6 print option input fields', async () => {
+test('GET / form contains all 7 print option input fields', async () => {
   const res = await request(app).get('/');
   const html = res.text;
   expect(html).toMatch(/name="copies"/);
@@ -40,6 +40,7 @@ test('GET / form contains all 6 print option input fields', async () => {
   expect(html).toMatch(/name="orientation"/);
   expect(html).toMatch(/name="fit"/);
   expect(html).toMatch(/name="margins"/);
+  expect(html).toMatch(/name="sides"/);
 });
 
 // Behavior 2: unsupported file type is rejected
@@ -211,4 +212,105 @@ test('POST /print with copies=3 passes -n 3 to lp', async () => {
     expect.anything(),
     expect.any(Function)
   );
+});
+
+// ── Duplex / sides ─────────────────────────────────────────────────────────
+
+test('POST /print with sides=two-sided-long-edge passes sides=two-sided-long-edge to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('sides', 'two-sided-long-edge')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-o', 'sides=two-sided-long-edge']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+
+test('POST /print with sides=two-sided-short-edge passes sides=two-sided-short-edge to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('sides', 'two-sided-short-edge')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-o', 'sides=two-sided-short-edge']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+
+// ── Parse endpoint ──────────────────────────────────────────────────────────
+
+jest.mock('pdf-lib', () => ({
+  PDFDocument: {
+    load: jest.fn(),
+  },
+}));
+
+const { PDFDocument } = require('pdf-lib');
+
+test('POST /parse with a PDF returns JSON metadata', async () => {
+  const mockDoc = {
+    getPageCount: jest.fn().mockReturnValue(12),
+    getPage: jest.fn().mockReturnValue({ getSize: () => ({ width: 595.28, height: 841.89 }) }),
+  };
+  PDFDocument.load.mockResolvedValue(mockDoc);
+
+  const res = await request(app)
+    .post('/parse')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(res.body).toEqual({
+    pageCount: 12,
+    orientation: 'portrait',
+    pageSize: 'A4',
+  });
+});
+
+test('POST /parse with a landscape PDF returns landscape orientation', async () => {
+  const mockDoc = {
+    getPageCount: jest.fn().mockReturnValue(5),
+    getPage: jest.fn().mockReturnValue({ getSize: () => ({ width: 841.89, height: 595.28 }) }),
+  };
+  PDFDocument.load.mockResolvedValue(mockDoc);
+
+  const res = await request(app)
+    .post('/parse')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'landscape.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(res.body).toEqual({
+    pageCount: 5,
+    orientation: 'landscape',
+    pageSize: 'A4',
+  });
+});
+
+test('POST /parse with unsupported file type returns 400', async () => {
+  const res = await request(app)
+    .post('/parse')
+    .attach('file', Buffer.from('data'), { filename: 'doc.xyz', contentType: 'application/octet-stream' });
+  expect(res.status).toBe(400);
+  expect(res.text).toMatch(/unsupported/i);
+});
+
+test('POST /parse with no file returns 400', async () => {
+  const res = await request(app).post('/parse');
+  expect(res.status).toBe(400);
+  expect(res.text).toMatch(/no file/i);
+});
+
+test('POST /print with sides=one-sided passes no -o sides arg to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('sides', 'one-sided')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  const lpCallArgs = execFile.mock.calls.find(c => c[0] === 'lp')[1];
+  const sidesArgs = lpCallArgs.filter(a => a.startsWith('sides=') || a === 'sides=two-sided-long-edge' || a === 'sides=two-sided-short-edge');
+  expect(sidesArgs).toHaveLength(0);
 });

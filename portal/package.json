@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "express-fileupload": "^1.5.2"
+    "express-fileupload": "^1.5.2",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "jest": "^29.7.0",

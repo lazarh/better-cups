@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { execFile } = require('child_process');
+const { PDFDocument } = require('pdf-lib');
 
 const app = express();
 app.use(fileUpload());
@@ -42,7 +43,47 @@ function buildLpArgs(body = {}) {
   if (body.fit === 'on') args.push('-o', 'fit-to-page');
   const marginArgs = MARGINS[body.margins];
   if (marginArgs) args.push(...marginArgs);
+  const sides = body.sides;
+  if (sides && sides !== 'one-sided') args.push('-o', `sides=${sides}`);
   return args;
+}
+
+const PAGE_SIZES = [
+  { name: 'A0', w: 2383.94, h: 3370.39 },
+  { name: 'A1', w: 1683.78, h: 2383.94 },
+  { name: 'A2', w: 1190.55, h: 1683.78 },
+  { name: 'A3', w: 841.89, h: 1190.55 },
+  { name: 'A4', w: 595.28, h: 841.89 },
+  { name: 'A5', w: 419.53, h: 595.28 },
+  { name: 'A6', w: 297.64, h: 419.53 },
+  { name: 'Letter', w: 612, h: 792 },
+  { name: 'Legal', w: 612, h: 1008 },
+  { name: 'Tabloid', w: 792, h: 1224 },
+];
+
+function getPageSizeName(width, height) {
+  const w = Math.min(width, height);
+  const h = Math.max(width, height);
+  for (const size of PAGE_SIZES) {
+    if (Math.abs(size.w - w) < 5 && Math.abs(size.h - h) < 5) return size.name;
+  }
+  const mmW = Math.round(w / 72 * 25.4);
+  const mmH = Math.round(h / 72 * 25.4);
+  return `${mmW}×${mmH} mm`;
+}
+
+async function parsePdf(filePath) {
+  const pdfBytes = fs.readFileSync(filePath);
+  const doc = await PDFDocument.load(pdfBytes);
+  const pageCount = doc.getPageCount();
+  let orientation = 'portrait';
+  let pageSize = null;
+  if (pageCount > 0) {
+    const { width, height } = doc.getPage(0).getSize();
+    if (width > height) orientation = 'landscape';
+    pageSize = getPageSizeName(width, height);
+  }
+  return { pageCount, orientation, pageSize };
 }
 
 const HTML_FORM = `<!DOCTYPE html>
@@ -127,6 +168,7 @@ const HTML_FORM = `<!DOCTYPE html>
 
     <div id="options">
       <hr class="divider">
+      <div id="page-info" style="font-size:.85rem;color:#666;margin-bottom:.75rem;min-height:1.2em"></div>
       <div class="opt-grid">
 
         <div class="opt-group">
@@ -136,7 +178,7 @@ const HTML_FORM = `<!DOCTYPE html>
 
         <div class="opt-group">
           <label for="pages">Page range</label>
-          <input type="text" id="pages" name="pages" placeholder="e.g. 1-3, 5">
+          <input type="text" id="pages" name="pages" placeholder="All pages">
         </div>
 
         <div class="opt-group">
@@ -157,7 +199,16 @@ const HTML_FORM = `<!DOCTYPE html>
           </select>
         </div>
 
-        <div class="opt-group full">
+        <div class="opt-group">
+          <label for="sides">Duplex</label>
+          <select id="sides" name="sides">
+            <option value="one-sided">Off</option>
+            <option value="two-sided-long-edge">Long Edge</option>
+            <option value="two-sided-short-edge">Short Edge</option>
+          </select>
+        </div>
+
+        <div class="opt-group">
           <label>Orientation</label>
           <div class="orient-row">
             <button type="button" class="orient-btn active" id="btn-portrait"
@@ -210,6 +261,7 @@ const HTML_FORM = `<!DOCTYPE html>
       margins:     document.getElementById('margins').value,
       orientation: document.getElementById('orientation').value,
       fit:         document.getElementById('fit').checked,
+      sides:       document.getElementById('sides').value,
     };
     localStorage.setItem(LS_KEY, JSON.stringify(d));
   }
@@ -223,6 +275,7 @@ const HTML_FORM = `<!DOCTYPE html>
       if (d.margins)     document.getElementById('margins').value = d.margins;
       if (d.orientation) setOrientation(d.orientation);
       if (d.fit)         document.getElementById('fit').checked   = d.fit;
+      if (d.sides)       document.getElementById('sides').value   = d.sides;
     } catch(_) {}
   }
   loadOpts();
@@ -233,6 +286,32 @@ const HTML_FORM = `<!DOCTYPE html>
     fn.textContent = file.name;
     btn.disabled   = false;
     opts.classList.add('visible');
+    parseFile(file);
+  }
+
+  async function parseFile(file) {
+    const info = document.getElementById('page-info');
+    info.textContent = 'Parsing file…';
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const r = await fetch('/parse', { method: 'POST', body: fd });
+      if (!r.ok) { info.textContent = ''; return; }
+      const meta = await r.json();
+      const parts = [];
+      if (meta.pageCount) parts.push(meta.pageCount + ' page' + (meta.pageCount > 1 ? 's' : ''));
+      if (meta.pageSize)  parts.push(meta.pageSize);
+      if (meta.orientation) {
+        setOrientation(meta.orientation);
+        parts.push(meta.orientation.charAt(0).toUpperCase() + meta.orientation.slice(1));
+      }
+      info.textContent = parts.join(' · ');
+      if (meta.pageCount) {
+        document.getElementById('pages').placeholder = '1\u2013' + meta.pageCount;
+      }
+    } catch(_) {
+      info.textContent = '';
+    }
   }
 
   input.addEventListener('change', () => onFileSelected(input.files[0]));
@@ -275,6 +354,57 @@ const HTML_FORM = `<!DOCTYPE html>
 </html>`;
 
 app.get('/', (_req, res) => res.send(HTML_FORM));
+
+app.post('/parse', async (req, res) => {
+  if (!req.files || !req.files.file) {
+    return res.status(400).send('No file attached.');
+  }
+
+  const file = req.files.file;
+  const mime = file.mimetype;
+  const ext = SUPPORTED_TYPES[mime];
+
+  if (!ext) {
+    return res.status(400).send(`Unsupported file type: ${mime}`);
+  }
+
+  const origName = file.name || 'upload';
+  const origExt = path.extname(origName).toLowerCase().replace('.', '') || ext;
+  const filePath = path.join(os.tmpdir(), `better-cups-parse-${Date.now()}.${origExt || ext}`);
+  fs.writeFileSync(filePath, file.data);
+
+  const cleanup = () => fs.unlink(filePath, () => {});
+
+  try {
+    if (DOCX_TYPES.has(mime)) {
+      const outDir = os.tmpdir();
+      await new Promise((resolve, reject) => {
+        execFile('libreoffice', ['--headless', '--convert-to', 'pdf', '--outdir', outDir, filePath], { timeout: 60000 }, (err, _stdout, stderr) => {
+          cleanup();
+          if (err) return reject(new Error(`LibreOffice conversion failed: ${stderr}`));
+          resolve();
+        });
+      });
+      const pdfPath = path.join(outDir, path.basename(filePath, path.extname(filePath)) + '.pdf');
+      const meta = await parsePdf(pdfPath);
+      fs.unlink(pdfPath, () => {});
+      return res.json(meta);
+    }
+
+    if (mime === 'application/pdf') {
+      const meta = await parsePdf(filePath);
+      cleanup();
+      return res.json(meta);
+    }
+
+    // Images: return basic info
+    cleanup();
+    return res.json({ pageCount: 1, orientation: null, pageSize: null });
+  } catch (err) {
+    cleanup();
+    return res.status(500).send(err.message);
+  }
+});
 
 app.post('/print', (req, res) => {
   if (!req.files || !req.files.file) {

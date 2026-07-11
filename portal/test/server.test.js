@@ -214,31 +214,77 @@ test('POST /print with copies=3 passes -n 3 to lp', async () => {
   );
 });
 
-// ── Duplex / sides ─────────────────────────────────────────────────────────
+// ── Manual duplex / sides ───────────────────────────────────────────────────
 
-test('POST /print with sides=two-sided-long-edge passes sides=two-sided-long-edge to lp', async () => {
+test('side=1 + sides=long-edge passes -o page-set=odd to lp', async () => {
   const res = await request(app)
     .post('/print')
-    .field('sides', 'two-sided-long-edge')
+    .field('side', '1')
+    .field('sides', 'long-edge')
     .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
   expect(res.status).toBe(200);
   expect(execFile).toHaveBeenCalledWith(
     'lp',
-    expect.arrayContaining(['-o', 'sides=two-sided-long-edge']),
+    expect.arrayContaining(['-o', 'page-set=odd']),
     expect.anything(),
     expect.any(Function)
   );
 });
 
-test('POST /print with sides=two-sided-short-edge passes sides=two-sided-short-edge to lp', async () => {
+test('side=1 + sides=short-edge passes -o page-set=odd to lp', async () => {
   const res = await request(app)
     .post('/print')
-    .field('sides', 'two-sided-short-edge')
+    .field('side', '1')
+    .field('sides', 'short-edge')
     .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
   expect(res.status).toBe(200);
   expect(execFile).toHaveBeenCalledWith(
     'lp',
-    expect.arrayContaining(['-o', 'sides=two-sided-short-edge']),
+    expect.arrayContaining(['-o', 'page-set=odd']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+
+test('side=2 + sides=long-edge passes page-set=even and outputorder=reverse to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('side', '2')
+    .field('sides', 'long-edge')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-o', 'page-set=even', '-o', 'outputorder=reverse']),
+    expect.anything(),
+    expect.any(Function)
+  );
+});
+
+test('side=2 + sides=short-edge passes -o page-set=even without outputorder to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('side', '2')
+    .field('sides', 'short-edge')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  const lpCallArgs = execFile.mock.calls.find(c => c[0] === 'lp')[1];
+  expect(lpCallArgs).toContain('-o');
+  expect(lpCallArgs).toContain('page-set=even');
+  expect(lpCallArgs).not.toContain('outputorder=reverse');
+});
+
+test('side=1 + copies=3 passes -n 3 and -o page-set=odd to lp', async () => {
+  const res = await request(app)
+    .post('/print')
+    .field('side', '1')
+    .field('sides', 'long-edge')
+    .field('copies', '3')
+    .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
+  expect(res.status).toBe(200);
+  expect(execFile).toHaveBeenCalledWith(
+    'lp',
+    expect.arrayContaining(['-n', '3', '-o', 'page-set=odd']),
     expect.anything(),
     expect.any(Function)
   );
@@ -304,13 +350,13 @@ test('POST /parse with no file returns 400', async () => {
   expect(res.text).toMatch(/no file/i);
 });
 
-test('POST /print with sides=one-sided passes no -o sides arg to lp', async () => {
+test('sides=off passes no page-set arg to lp', async () => {
   const res = await request(app)
     .post('/print')
-    .field('sides', 'one-sided')
+    .field('sides', 'off')
     .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
   expect(res.status).toBe(200);
   const lpCallArgs = execFile.mock.calls.find(c => c[0] === 'lp')[1];
-  const sidesArgs = lpCallArgs.filter(a => a.startsWith('sides=') || a === 'sides=two-sided-long-edge' || a === 'sides=two-sided-short-edge');
-  expect(sidesArgs).toHaveLength(0);
+  const pageSetArgs = lpCallArgs.filter(a => a.includes('page-set'));
+  expect(pageSetArgs).toHaveLength(0);
 });

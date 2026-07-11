@@ -43,8 +43,14 @@ function buildLpArgs(body = {}) {
   if (body.fit === 'on') args.push('-o', 'fit-to-page');
   const marginArgs = MARGINS[body.margins];
   if (marginArgs) args.push(...marginArgs);
+  const side = body.side;
   const sides = body.sides;
-  if (sides && sides !== 'one-sided') args.push('-o', `sides=${sides}`);
+  if (side === '1') {
+    args.push('-o', 'page-set=odd');
+  } else if (side === '2') {
+    args.push('-o', 'page-set=even');
+    if (sides === 'long-edge') args.push('-o', 'outputorder=reverse');
+  }
   return args;
 }
 
@@ -202,9 +208,9 @@ const HTML_FORM = `<!DOCTYPE html>
         <div class="opt-group">
           <label for="sides">Duplex</label>
           <select id="sides" name="sides">
-            <option value="one-sided">Off</option>
-            <option value="two-sided-long-edge">Long Edge</option>
-            <option value="two-sided-short-edge">Short Edge</option>
+            <option value="off">Off</option>
+            <option value="long-edge">Long Edge</option>
+            <option value="short-edge">Short Edge</option>
           </select>
         </div>
 
@@ -218,6 +224,8 @@ const HTML_FORM = `<!DOCTYPE html>
           </div>
           <input type="hidden" id="orientation" name="orientation" value="portrait">
         </div>
+
+        <input type="hidden" id="current-side" name="side" value="">
 
         <div class="opt-group full">
           <label class="check-row" for="fit">
@@ -244,6 +252,11 @@ const HTML_FORM = `<!DOCTYPE html>
   const status = document.getElementById('status');
   const form   = document.getElementById('form');
   const opts   = document.getElementById('options');
+  const nup    = document.getElementById('nup');
+  const sides  = document.getElementById('sides');
+  const sideInput = document.getElementById('current-side');
+
+  let duplexState = 'idle'; // 'idle' | 'waiting-for-flip'
 
   // ── Orientation toggle ───────────────────────────────────────────────────
   function setOrientation(val) {
@@ -251,6 +264,31 @@ const HTML_FORM = `<!DOCTYPE html>
     document.getElementById('btn-portrait').classList.toggle('active',  val === 'portrait');
     document.getElementById('btn-landscape').classList.toggle('active', val === 'landscape');
   }
+
+  // ── Duplex UI helpers ────────────────────────────────────────────────────
+  function isDuplex() { return sides.value !== 'off'; }
+
+  function updateDuplexUI() {
+    if (isDuplex()) {
+      nup.value = '1';
+      nup.disabled = true;
+    } else {
+      nup.disabled = false;
+    }
+  }
+
+  function resetDuplexFlow() {
+    duplexState = 'idle';
+    sideInput.value = '';
+    btn.textContent = 'Print';
+    status.textContent = '';
+    status.className = '';
+  }
+
+  sides.addEventListener('change', () => {
+    updateDuplexUI();
+    resetDuplexFlow();
+  });
 
   // ── localStorage persistence ─────────────────────────────────────────────
   function saveOpts() {
@@ -279,6 +317,7 @@ const HTML_FORM = `<!DOCTYPE html>
     } catch(_) {}
   }
   loadOpts();
+  updateDuplexUI();
 
   // ── File selection ────────────────────────────────────────────────────────
   function onFileSelected(file) {
@@ -286,6 +325,7 @@ const HTML_FORM = `<!DOCTYPE html>
     fn.textContent = file.name;
     btn.disabled   = false;
     opts.classList.add('visible');
+    resetDuplexFlow();
     parseFile(file);
   }
 
@@ -336,18 +376,48 @@ const HTML_FORM = `<!DOCTYPE html>
     btn.disabled    = true;
     status.textContent = 'Sending to printer…';
     status.className   = '';
+
+    const duplex = isDuplex();
+    if (duplex && duplexState === 'idle') {
+      sideInput.value = '1';
+    } else if (duplex && duplexState === 'waiting-for-flip') {
+      sideInput.value = '2';
+    } else {
+      sideInput.value = '';
+    }
+
     const fd = new FormData(form);
-    // Ensure fit value is included when unchecked (checkbox omitted by FormData if unchecked)
     if (!document.getElementById('fit').checked) fd.delete('fit');
     try {
       const r   = await fetch('/print', { method: 'POST', body: fd });
       const txt = await r.text();
-      if (r.ok) { status.textContent = '✅ ' + txt; status.className = 'ok'; }
-      else      { status.textContent = '❌ ' + txt; status.className = 'err'; }
+      if (r.ok) {
+        if (duplex && duplexState === 'idle') {
+          const flipLabel = sides.value === 'long-edge' ? 'long' : 'short';
+          status.innerHTML = 'Side 1 printed. Flip pages along the <b>' + flipLabel + ' edge</b>, then reload the paper.';
+          status.className = '';
+          btn.textContent = 'Print Side 2';
+          duplexState = 'waiting-for-flip';
+          btn.disabled = false;
+        } else if (duplex && duplexState === 'waiting-for-flip') {
+          status.textContent = '✅ Done — both sides printed.';
+          status.className = 'ok';
+          resetDuplexFlow();
+        } else {
+          status.textContent = '✅ ' + txt;
+          status.className = 'ok';
+        }
+      } else {
+        status.textContent = '❌ ' + txt;
+        status.className = 'err';
+        if (duplex) resetDuplexFlow();
+      }
     } catch(_) {
-      status.textContent = '❌ Network error'; status.className = 'err';
+      status.textContent = '❌ Network error';
+      status.className = 'err';
+      if (duplex) resetDuplexFlow();
     }
-    btn.disabled = false;
+    if (!duplex || duplexState === 'idle') btn.disabled = false;
   });
 </script>
 </body>
